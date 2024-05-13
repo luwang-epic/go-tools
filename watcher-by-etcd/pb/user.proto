@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package bls;
+
+option go_package = "watcher-by-etcd/pb";
+
+message UserProto {
+  // 用户名
+  string name = 1;
+
+  // 年龄
+  int32 age = 2;
+}
