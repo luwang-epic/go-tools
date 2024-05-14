@@ -57,7 +57,7 @@ func main() {
 	flag.StringVar(&env, "env", "local", "environment")
 	flag.Parse()
 
-	configPath := fmt.Sprintf("watcher-by-etcd/config/%s.%s.yml", configPrefix, env)
+	configPath := fmt.Sprintf("watcher-by-etcd-and-sync-to-other-module/config/%s.%s.yml", configPrefix, env)
 	bytes, err := os.ReadFile(configPath)
 	if err != nil {
 		log.Panicf("fail to read config=%s, err=%v", configPath, err)

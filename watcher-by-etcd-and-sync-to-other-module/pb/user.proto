@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package pb;
 
-option go_package = "watcher-by-etcd/pb";
+option go_package = "watcher-by-etcd-and-sync-to-other-module/pb";
 
 message UserProto {
   // 用户名

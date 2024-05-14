@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package pb;
+
+option go_package = "watcher-by-etcd-and-sync-to-other-module/pb";
+
+// The watching service definition.
+service Watcher {
+  rpc Get (GetRequest) returns (stream WatchEventProto) {}
+  rpc Watch (WatchRequest) returns (stream WatchEventProto) {}
+}
+
+message GetRequest {
+  repeated string key_prefixes = 1;
+}
+
+message WatchRequest {
+  int64 revision = 1;
+  repeated string key_prefixes = 2;
+}
+
+message WatchEventProto {
+  enum EventType {
+    ET_PUT    = 0;
+    ET_DELETE = 1;
+  }
+  EventType type = 1;
+  string key = 2;
+  int64 revision = 3;
+  bytes message = 4;
+}

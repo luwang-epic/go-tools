@@ -140,6 +140,7 @@ func main() {
 
 	// Shutdown all services.
 	cancel()
+	etcdWatcher.Stop()
 }
 
 func newLogger(cfg *config) (*zap.Logger, error) {

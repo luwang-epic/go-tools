@@ -8,21 +8,30 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
-	"github.com/hashicorp/go-uuid"
 	clientv3 "go.etcd.io/etcd/client/v3"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
 	"gopkg.in/yaml.v2"
 
-	"go-tools/watcher-by-etcd/pb"
+	"go-tools/watcher-by-etcd-and-sync-to-other-module/controller"
+	"go-tools/watcher-by-etcd-and-sync-to-other-module/pb"
+	watching "go-tools/watcher-by-etcd-and-sync-to-other-module/service"
 	"go-tools/watcher-by-etcd/prom"
 	"go-tools/watcher-by-etcd/watcher"
 )
 
 type config struct {
+	Watching struct {
+		Port                  int     `yaml:"port"`
+		Batch                 int     `yaml:"batch"`
+		CompactionThreshold   float64 `yaml:"compactionThreshold"`
+		CompactionIntervalMin int     `yaml:"compactionIntervalMin"`
+	} `yaml:"watching"`
 	Logging struct {
 		LogToStderr bool   `yaml:"logToStderr"`
 		Filename    string `yaml:"filename"`
@@ -49,7 +58,6 @@ type config struct {
 	} `yaml:"model"`
 }
 
-// main 用户添加一个用户，用来验证监听机制是否生效
 func main() {
 	var configPrefix string
 	var env string
@@ -57,7 +65,7 @@ func main() {
 	flag.StringVar(&env, "env", "local", "environment")
 	flag.Parse()
 
-	configPath := fmt.Sprintf("watcher-by-etcd/config/%s.%s.yml", configPrefix, env)
+	configPath := fmt.Sprintf("watcher-by-etcd-and-sync-to-other-module/config/%s.%s.yml", configPrefix, env)
 	bytes, err := os.ReadFile(configPath)
 	if err != nil {
 		log.Panicf("fail to read config=%s, err=%v", configPath, err)
@@ -79,7 +87,7 @@ func main() {
 	}()
 
 	// The context is used to quit all goroutines gracefully.
-	ctx, _ := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
 
 	// Init etcd.
 	dialTimeout := time.Duration(cfg.Etcd.DialTimeoutMilliSecond) * time.Millisecond
@@ -121,20 +129,35 @@ func main() {
 	em := watcher.NewEtcdModel(logger, etcdClient, queryTimeout, etcdWatcher)
 	logger.Info("connected to etcd", zap.Strings("endpoints", cfg.Etcd.Endpoints))
 
+	// Init indexes.
+	userIndex := watcher.NewUserIndex(logger)
+
 	// Init models.
 	userModel := watcher.NewUserModel(logger, em, cfg.Model.UserPrefix)
+	userModel.AddWatcher(userIndex)
 
-	name, _ := uuid.GenerateUUID()
-	user := &pb.UserProto{
-		Name: name,
-		Age:  18,
-	}
-	_, err = userModel.Add(ctx, user)
-	if err != nil {
-		logger.Error("add user error", zap.Error(err))
-	} else {
-		logger.Info("add user success", zap.Any("user", user))
-	}
+	// Add watchers
+	modelGroup := etcdWatcher.AddGroup()
+	modelGroup.AddWatcher(cfg.Model.UserPrefix, userModel)
+	watchQueue := watching.NewQueue(logger, cfg.Model.WatchPrefix, []string{cfg.Model.UserPrefix}, cfg.Watching.CompactionThreshold)
+	watcherGroup := etcdWatcher.AddGroup()
+	watcherGroup.AddWatcher(cfg.Model.WatchPrefix, watchQueue)
+	etcdWatcher.Start(ctx)
+
+	// Start watching server
+	grpcApp := controller.NewGrpcApp(logger)
+	pb.RegisterWatcherServer(grpcApp.ServiceRegistrar(), watching.NewService(logger, watchQueue, cfg.Watching.Batch))
+	grpcApp.Serve(cfg.Watching.Port)
+
+	// Wait for interrupt signal to GRACEFULLY shut down the server.
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	// Shutdown all services.
+	cancel()
+	grpcApp.Stop()
+	etcdWatcher.Stop()
 }
 
 func newLogger(cfg *config) (*zap.Logger, error) {
