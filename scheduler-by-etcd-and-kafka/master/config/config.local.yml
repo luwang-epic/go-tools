@@ -1,0 +1,25 @@
+
+etcd:
+  endpoints:
+    - localhost:2379
+  enableTLS: false
+  dialTimeoutMilliSecond: 10000
+  queryTimeoutMilliSecond: 10000
+
+model:
+  watchPrefix: /wang/tools/scheduler
+  alarmPolicyKeyPrefix: /wang/tools/scheduler/alarmPolicy/
+
+kafka:
+  brokers: ["localhost:9092"]
+
+alarmTaskManager:
+  topic: alarm-task
+
+logging:
+  level: debug
+  logToStderr: true  # 该值为true时，日志将会打印到标准输出，不会打印到文件，方便本地开发环境调试
+  filename: logs/election-by-etcd.log
+  maxSize: 100  # MB，单日志文件的最大容量
+  maxBackups: 3  # 最大保留的日志文件数量
+  maxAge: 7  # Days, 最大保留的日志文件天数

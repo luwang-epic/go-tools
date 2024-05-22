@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package bls;
+
+option go_package = "scheduler-by-etcd-and-kafka/pb";
+
+message AlarmPolicyProto {
+  // 用户id
+  string userid = 1;
+
+  // 策略id
+  string id = 2;
+
+  // 策略名称
+  string name = 3;
+
+  enum AlarmPolicyState {
+    AS_ENABLED  = 0; // 已启用
+    AS_DISABLED = 1; // 已关闭
+  }
+  AlarmPolicyState state = 4;
+
+  // 报警策略创建时间戳，单位：毫秒
+  int64 created_timestamp = 5;
+  // 报警策略更新时间戳，单位：毫秒
+  int64 updated_timestamp = 6;
+
+  // 执行周期
+  AlarmScheduleProto schedule = 7;
+
+  // 下一次执行时间，单位：毫秒
+  int64 next_schedule_timestamp = 8;
+}
+
+message AlarmScheduleProto {
+  // 间隔时长，单位：分钟
+  int64 interval_minute = 1;
+  // 指定时刻，一天中的第几分钟，取值范围[0, 1440)
+  int32 fix_time_minute = 2;
+  // 固定时间频率; 0: 每天  1~7 一周的某天
+  int32 day_of_week = 3;
+}
+
+message AlarmTaskProto {
+  // 报警策略
+  AlarmPolicyProto policy = 1;
+
+  // 调度时间
+  int64 schedule_timestamp = 2;
+}
