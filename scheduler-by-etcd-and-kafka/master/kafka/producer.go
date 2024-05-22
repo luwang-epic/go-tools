@@ -44,6 +44,7 @@ func (p *ProducerImpl) Start(ctx context.Context) error {
 	config := sarama.NewConfig()
 	config.Producer.Retry.Max = p.maxRetries
 	config.Producer.Return.Successes = false
+	config.Producer.Partitioner = sarama.NewRoundRobinPartitioner
 	producer, err := sarama.NewAsyncProducer(p.brokers, config)
 	if err != nil {
 		return err
